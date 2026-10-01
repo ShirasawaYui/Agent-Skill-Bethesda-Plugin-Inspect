@@ -9,6 +9,20 @@
 
 ---
 
+## 1.3.8 — 2026-10-01
+
+**仅补充参考文档（脚本无变更）** —— 用户追问「这套判断逻辑有没有漏洞」，逐条验证后补记
+
+- ✚ 第 8 节新增「已知漏洞（读的时候要防）」四条，均为实测所得：
+  1. **`AVIF` 的 EditorID 不能按「AV＋技能名」推** —— 幻术树实际挂在 `AVMysticism` 上
+     （上古卷轴 4 的旧名），而 `AVIllusionMod` / `AVIllusionPowerMod` / `AVIllusionSkillAdvance`
+     只是修饰用 actor value。已用节点表验证：`AVMysticism` 的节点正是 `IllusionNovice00` /
+     `IllusionApprentice25` / `IllusionAdept50` / `IllusionExpert75` / `IllusionMaster100` 等
+  2. **同名插件文件在 MO2/mods 下可能有多份**（本项目实测 698 个插件中 26 个重名）——
+     按文件名去重会取到不是 MO2 实际加载的那一份，须按 `modlist.txt` 左侧优先级取最高者
+  3. **基线之外的身份必须显式归类**，否则静默丢弃：读不到也不报错，结论却成了"没有该改动"
+  4. **旧式 `plugins.txt`（无 `*`）**会让"只看 `*`"的解析把全部插件误判为未启用
+
 ## 1.3.7 — 2026-10-01
 
 **仅补充参考文档（脚本无变更）** —— 补第 8 节缺的"覆盖链末端怎么定"

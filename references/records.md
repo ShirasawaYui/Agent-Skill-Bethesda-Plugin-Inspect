@@ -254,6 +254,22 @@ PNAM FNAM XNAM YNAM HNAM VNAM SNAM CNAM [CNAM…] INAM    ← 一个节点
    前提是这两份文件即当前生效状态。顺序若刚被外部工具（LOOT 等）改动而尚未写盘，会与游戏不一致；
    **最终仍以游戏内为准**。
 
+### 已知漏洞（读的时候要防）
+
+1. **`AVIF` 的 EditorID 不能按「AV ＋ 技能名」去推。** 实测：幻术树挂在 **`AVMysticism`** 上 ——
+   那是上古卷轴 4 的旧名（4 代该学派叫 Mysticism），5 代改了学派名却没有改这条记录的 EditorID；
+   而 `AVIllusionMod` / `AVIllusionPowerMod` / `AVIllusionSkillAdvance` 三条只是**修饰用 actor value，不是树**。
+   已用节点表验证：`AVMysticism` 的节点正是 `IllusionNovice00` / `IllusionApprentice25` /
+   `IllusionAdept50` / `IllusionExpert75` / `IllusionMaster100` / `KindredMage` / `Animage` …
+   → **树要枚举出来，不要按名字拼。**
+2. **同名插件文件在 MO2/mods 下可能有多份**（本项目实测 698 个插件里有 **26 个重名**）。
+   直接遍历目录再按文件名去重，会取到**不是 MO2 实际加载的那一份**；
+   正确做法是按 `modlist.txt` 的左侧优先级，取优先级最高的那个 mod 目录里的副本。
+3. **基线之外的身份必须显式归类。** 若只把"身份落在原版基线里"的记录算作覆盖，其余一律落空，
+   就会出现**静默丢弃** —— 读不到也不报错，结论却变成"没有该改动"。
+4. **旧式 `plugins.txt`（无 `*`、只列启用者）**会让"只看 `*`"的解析把全部插件误判为未启用。
+   换 profile 前先确认格式。
+
 ### 三个陷阱
 
 1. **技能树本身也会被覆盖，且不同技能可能由不同插件提供。** AVIF 同样受 load order 决定 ——
