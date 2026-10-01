@@ -490,7 +490,7 @@ def cmd_chain(args):
     for i, c in enumerate(chain):
         mark = "  <- 最终生效" if i == len(chain) - 1 else ""
         print(f"  [{c['pos']:>3}] {c['name']:<{width}}  {c['sig']}  "
-              f"EditorID={c['eid']:<16} FormID={hex(c['form'])}  "
+              f"EditorID={(c['eid'] or '?'):<16} FormID={hex(c['form'])}  "
               f"子记录={c['n']:>3}  VMAD={'有' if c['vmad'] else '无'}{mark}")
 
     print(f"\n共 {len(chain)} 份定义；耗时 {time.time() - t0:.1f}s")

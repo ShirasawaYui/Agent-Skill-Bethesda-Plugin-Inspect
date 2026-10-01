@@ -9,6 +9,20 @@
 
 ---
 
+## 1.4.6 — 2026-10-02
+
+- **修 `chain` 崩溃**：覆盖链里含**无 EDID 的记录**时，`esp_inspect.py` 第 493 行
+  `f"EditorID={c['eid']:<16}"` 抛 `TypeError: unsupported format string passed to NoneType.__format__`。
+  已改为 `{(c['eid'] or '?')}`。触发条件：用低位 local_id 检索（实测一个 id 命中 45 份定义，多条无 EDID）。
+- `references/troubleshooting.md` §2 **改写文本编码**：原文写"中文多为 GBK"有误导 —— 实测本包主流是 UTF-8，
+  且 `dump` 输出里的 `æœºç\x81µ…` 是 **UTF-8 字节被按 Latin-1 打印**，不是损坏。
+  补解码配方 `s.encode('latin1').decode('utf-8')`，并新增「译名/文案类结论的定案纪律」
+  （截图会把形近字认错：实测同一名字两次读错、错法各异）。
+- `references/troubleshooting.md` §3 **新增「从 grep 偏移读整段文本」**：不需要 EditorID，
+  直接读字节窗口即可把内嵌指南/书页全文捞出；另补「同词多写法比命中文件数判正字」。
+- `references/troubleshooting.md` §4 补 `chain` 崩溃行。
+- `references/workflow.md` 第一步定位表补字节窗口一行，并前移「译名定案纪律」的路标。
+
 ## 1.4.5 — 2026-10-02
 
 **仅补充参考文档（脚本无变更）**
