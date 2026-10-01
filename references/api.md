@@ -1,6 +1,6 @@
 # bethkit API 速查
 
-> 版本：v1.0.0 · 最后更新：2026-10-01
+> 版本：v1.1.0 · 最后更新：2026-10-01
 
 面向"读插件"的高频调用与陷阱。完整定义见 https://github.com/Modding-Forge/bethkit.py 。
 
@@ -89,7 +89,26 @@ with Plugin.open(path, Game.SKYRIM_SE) as pl:
 
 解码前先确认字段名，不要臆断偏移——schema 是权威来源。
 
-## 4. 覆盖解析
+## 4. FormID 映射与覆盖解析
+
+### 4.1 文件内 FormID（读单个插件时）
+
+插件内部记录的 `form_id` 高字节是**该插件自身 master 列表的下标**，与全局 load order 无关：
+
+```python
+masters = [pl.master_at(i) for i in range(pl.master_count)]
+hi, lo = raw_form_id >> 24, raw_form_id & 0xFFFFFF
+if hi >= len(masters):
+    target = pl.source_name        # 指向本插件自身
+else:
+    target = masters[hi]           # 指向某个 master
+```
+
+- **高字节 ≥ master 数 ⇒ 引用本插件自身**（文件内引用自己时高字节填 master_count），不是数据损坏
+- 解析某个 NPC_ 的 Perk / Spell 引用时必须用这套映射；还原"最终生效值"才用 4.2 的 `PluginCache`，两者不可混用
+- 反例：拿 `loadorder.txt` 的行号当高字节索引 → 会解析出完全无关的插件
+
+### 4.2 跨插件覆盖解析
 
 ```python
 from bethkit import PluginCache
@@ -130,6 +149,8 @@ with bethkit.Archive.open(path_bsa) as ar:
 | `cache.add()` **接管 Plugin 句柄** | 之后访问原对象报 `BethkitClosedError: Plugin is closed` | 需要遍历就先把遍历做完，或为遍历单独再开一个句柄 |
 | `RecordView` 禁止直接构造 | `TypeError` | 必须经 `SemanticContext.view()` |
 | `resolve` 传入带槽位的 FormID | 返回 `None` | 只用低 24 位 `object_id` |
+| 用 load order 行号当 formid 高字节 | 解出毫不相关的插件 | 单插件内用 `master_at()`（见 4.1）；跨插件才用 `PluginCache` |
+| 子记录的引用签名 ≠ 目标记录签名 | 拿 `PRKR`/`SPLO` 去查 `PERK`/`SPEL` 记录，全部落空 | NPC_ 内 `PRKR`→`PERK`、`SPLO`→`SPEL`，先映射再查 |
 
 ## 7. 写入能力（本技能不使用）
 
