@@ -136,3 +136,56 @@ for f in ctx.view(record).fields():
    混进列表会误导（例：`VKR_Des_060_ImpactNPC`）。
 3. **FULL / DESC 均为空的记录是空壳**。常见于被后续插件覆盖致失效的原版 perk
    （如整合包里的 `REQ_NULL_*`），应单独归入附录而非主表。
+
+## 7. PERK 的实际数值效果怎么读
+
+描述（`DESC`）只会说"提升威力"，**具体数值在 entry point** —— 那才是游戏引擎真正执行的部分。
+
+### 结构
+
+一个 perk 可含**多个** entry point 块，每块形如：
+
+```
+Header（Type / Rank / Priority）
+Effect Data（Entry Point / Function）   ← 作用对象 + 运算方式
+[CTDA …]                                ← 该块生效条件（不是学习前置）
+Type（数值类型）
+Data（数值）
+End Marker
+```
+
+按 `Header` 出现位置切块、到 `End Marker` 结束即可。`Header.Type` 三类：
+
+| 值 | 含义 | 数值在哪 |
+|---|---|---|
+| `Entry Point` | 数值修正（绝大多数） | 同块的 `Type` + `Data` |
+| `Ability` | 额外挂一个法术 | `Effect Data` 直接是 SPEL 引用，**无 Type/Data** |
+| `Quest + Stage` | 完成指定任务阶段后生效 | 无数值 |
+
+### Function（运算方式）
+
+| Function | 读作 |
+|---|---|
+| `Multiply Value` | `×N`（×0.85 = 减 15%） |
+| `Add Value` | `+N` |
+| `Set Value` | `= N`（开关型 perk 常用，1 = 开启） |
+| `Multiply 1 + Actor Value Mult` | `×(1 + 技能值 × 系数)` |
+| `Multiply Actor Value Mult` | `× 技能值 × 系数` |
+| `Add Actor Value Mult` | `+ 技能值 × 系数` |
+| `Select Spell` / `Add Activate Choice` | 非数值（选择法术 / 新增交互选项） |
+
+### `Float/AV,Float` 的两个值 = (技能索引, 每点系数)
+
+实测规律：**第一个值按整数读出来就是 ActorValue 索引**
+（12=轻甲、16=炼金、17=口才、18=变化、19=召唤、20=毁灭、21=幻术、22=恢复…），第二个是该技能每 1 点的增益。
+例：`(20.0, 0.02)` 读作「毁灭系技能 × 0.02」。
+
+> bethkit 会把第一个值显示成大整数（float 的位模式，如 `1101004800` = 20.0f）。
+> 需还原：`struct.unpack("<f", struct.pack("<I", v & 0xFFFFFFFF))[0]`。
+
+### 注意
+
+- **描述会省略数值，也可能与数值不符** —— 一律以 entry point 为准
+- 一条 perk 的多个 entry point **并列生效**；但「新手/学徒/老手/专家/大师」这类
+  **按法术等级分档**的 perk 只作用于对应等级的法术，互不叠加
+- `Ability` 引用的法术通常是**无名隐藏法术**，解析不出名称属正常（如开锁专长就藏在其中）

@@ -9,6 +9,17 @@
 
 ---
 
+## 1.3.3 — 2026-10-01
+
+**仅补充参考文档（脚本无变更）**
+
+- ✚ `references/records.md` 新增 **7. PERK 的实际数值效果怎么读**：
+  - entry point 块的结构（Header → Effect Data → CTDA → Type → Data → End Marker）
+    与 `Header.Type` 的三类（Entry Point / Ability / Quest+Stage）
+  - Function 到可读算式的映射表（`Multiply Value` → `×N` 等）
+  - **`Float/AV,Float` 的两个值 = (技能索引, 每点系数)** —— 附实测规律与位模式还原写法
+  - 三条注意：描述不等同数值、分档 perk 不叠加、Ability 多为无名隐藏法术
+
 ## 1.3.2 — 2026-10-01
 
 **仅补充参考文档（脚本无变更）**
