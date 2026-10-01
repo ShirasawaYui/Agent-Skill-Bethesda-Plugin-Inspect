@@ -1,6 +1,6 @@
 # bethkit API 速查
 
-> 版本：v1.1.0 · 最后更新：2026-10-01
+> 版本：v1.1.1 · 最后更新：2026-10-02
 
 面向"读插件"的高频调用与陷阱。完整定义见 https://github.com/Modding-Forge/bethkit.py 。
 
@@ -30,6 +30,17 @@ LoadOrder        load order 与全局 FormID 解析
 from pathlib import Path
 from bethkit import Game, Plugin
 
+def iter_group(g):                              # ⚠️ 必须递归，见下
+    for i in range(g.child_count):              # 属性
+        if g.child_is_record(i):
+            r = g.child_as_record(i)
+            if r is not None:
+                yield r
+        else:
+            sub = g.child_as_group(i)
+            if sub is not None:
+                yield from iter_group(sub)
+
 with Plugin.open(Path(r"F:\...\SomeMod.esp"), Game.SKYRIM_SE) as pl:
     print(pl.source_name, pl.kind, pl.master_count, pl.group_count)
     print("masters:", [pl.master_at(i) for i in range(pl.master_count)])
@@ -38,12 +49,13 @@ with Plugin.open(Path(r"F:\...\SomeMod.esp"), Game.SKYRIM_SE) as pl:
         g = pl.group_at(gi)
         if not g:
             continue
-        for i in range(g.child_count):          # 属性
-            if not g.child_is_record(i):
-                continue
-            r = g.child_as_record(i)
+        for r in iter_group(g):
             print(r.signature, hex(r.form_id), r.editor_id)
 ```
+
+**子分组必须递归**：`Group` 可以套 `Group`（如 `CELL` 的 block → subblock → cell → temporary/persistent children）。
+只遍历顶层 `group_at()` 的直接子项会**静默漏掉大量记录**，而且不报错——很容易误判成"这个插件没有这类记录"。
+`esp_inspect.py` 内部用的就是上面这个 `_iter_group` 递归写法。
 
 `Game` 可取：`SKYRIM_SE` / `SKYRIM_LE` / `SKYRIM_VR` / `FALLOUT4` / `FALLOUT3` / `FALLOUT_NV` / `FALLOUT4_VR` / `FALLOUT76` / `OBLIVION` / `MORROWIND` / `STARFIELD`。
 
@@ -56,7 +68,7 @@ for si in range(n):
     sr = r.subrecord_at(si)
     sr.signature                 # bytes，如 b'FULL'
     sr.as_str()                  # 文本类子记录
-    sr.raw_bytes                 # 原始字节
+    sr.raw_bytes                 # 原始字节；**属性，不加括号**（不存在 .data / .as_bytes()）
 
 sr = r.find_subrecord(b"FULL")   # 按签名取第一个
 ```
@@ -144,6 +156,8 @@ with bethkit.Archive.open(path_bsa) as ar:
 |---|---|---|
 | `Plugin.open` 的 `path` 必须是 `pathlib.Path` | 传 `str` 报 `AttributeError: 'str' object has no attribute 'name'` | 一律用 `Path(...)` |
 | `Record.subrecord_count` 是**方法** | `TypeError: 'method' object cannot be interpreted as an integer` | 写 `r.subrecord_count()` |
+| 子记录取原始字节只有 `sr.raw_bytes`（**属性**） | 写 `sr.data` / `sr.as_bytes()` / `bytes(sr)` 都拿不到内容，`raw(sr)` 静默返回 `b''` | 用 `sr.raw_bytes`，不加括号 |
+| 遍历记录时**不递归子分组** | 静默漏记录，不报错 → 误判"没有这类记录" | 用 §2 的 `iter_group` 递归写法 |
 | `Plugin.group_count` / `Group.child_count` 是**属性** | 加括号会报 `'int' object is not callable` | 不加括号 |
 | `Plugin` 没有 `child_count` | `AttributeError` | 先 `group_at(i)` 拿 `Group` |
 | `cache.add()` **接管 Plugin 句柄** | 之后访问原对象报 `BethkitClosedError: Plugin is closed` | 需要遍历就先把遍历做完，或为遍历单独再开一个句柄 |

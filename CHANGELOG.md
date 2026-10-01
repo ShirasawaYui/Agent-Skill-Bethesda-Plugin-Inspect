@@ -9,6 +9,20 @@
 
 ---
 
+## 1.4.8 — 2026-10-02
+
+- `references/api.md` §2 **遍历示例改为递归写法**：原示例只遍历顶层 `group_at()` 的直接子项，
+  而 `Group` 可以套 `Group`（如 `CELL` 的 block→subblock→cell→children），**会静默漏记录且不报错**，
+  极易误判成"这个插件没有这类记录"。陷阱表同时补两行：
+  ① 子记录原始字节只有 `sr.raw_bytes`（**属性**；`.data` / `.as_bytes()` 取不到内容，`raw()` 会静默返回 `b''`）；
+  ② 「遍历不递归子分组」这一条。api.md 版本 → v1.1.1。
+- `references/troubleshooting.md` **新增 §7「机制查不到时的判断纪律」**：
+  按 记录层 → 脚本层 → 插件层 三层排除；**记录层查不到 ⇒ 结论只能停在"记录层无实现"，
+  不能对用户断言"这个包没有这个机制"**（引擎行为常驻 SKSE 插件，esp 工具一律读不到）；
+  并重申「字节串命中 ≠ 记录存在」（EDID 常与资源路径同形，且真名可能与直觉不同——
+  实测山花是 `TREE` 记录、真名 `TreeFloraMountainFlower01Blue`，不是 `FLOR`）。
+  附 2026-10-02「采集数量」的完整排查实例。troubleshooting.md 版本 → v1.1.2。
+
 ## 1.4.7 — 2026-10-02
 
 - `references/troubleshooting.md` §2 补两条实测避坑：
