@@ -4,7 +4,7 @@ display_name: 结衣的Bethesda模组内容分析助手
 description: 直接读取 Bethesda 游戏插件（esp/esm/esl）记录，定位某个 mod 改了什么——角色参数、任务流程、道具效果、脚本挂载，并还原 load order 覆盖链确认最终生效值。当用户问「这个 mod 改了什么」「某条记录的最终数值是多少」「这个脚本里写了什么」时使用。不用于修改或编译插件（写操作请用 SSEEdit），不做模型贴图等资源内容的视觉查看。
 description_zh: 读取 Bethesda 游戏插件（esp/esm/esl）记录，定位某个 mod 改了什么内容——角色参数、任务流程、道具效果、脚本挂载，并还原 load order 覆盖链确认最终生效值。附带 pex 脚本反编译与 bsa/ba2 归档读取路径。
 description_en: Read Bethesda game plugin (esp/esm/esl) records to find out what a mod changes — actor stats, quest flow, item effects, script attachments — and resolve the load-order override chain to determine the finally effective value. Also covers pex decompilation and bsa/ba2 archive reading.
-version: 1.3.5
+version: 1.3.6
 author: Yui
 license: MIT
 agent_created: true
@@ -73,7 +73,8 @@ metadata:
 ```
 
 按 xEdit 官方 schema 解码为命名字段，同时打印子记录序列与 VMAD 有无。
-记录签名对照、以及**前置条件（CTDA）与 entry point 实际数值**的读法见 `references/records.md`。
+记录签名对照、以及**前置条件（CTDA）、entry point 实际数值、PERK 树成员关系（AVIF 节点表）**
+的读法见 `references/records.md`。
 
 ### 3 归因 —— 哪一份最终生效
 
@@ -165,7 +166,7 @@ BSA Browser 为 GPL-3.0，且其作者在发布页声明**不允许转载至其�
 |---|---|
 | `references/bethkit.md` | **bethkit 引述文档**：出处、安装、检查更新、升级回滚、替代方案 |
 | `references/api.md` | bethkit API 速查与陷阱清单 |
-| `references/records.md` | 记录签名对照；**前置条件（CTDA）与 entry point 实际数值怎么读** |
+| `references/records.md` | 记录签名对照；**前置条件（CTDA）、entry point 实际数值、PERK 树成员关系（AVIF 节点表）怎么读** |
 | `references/workflow.md` | 查询流程细则与交付形态 |
 | `references/troubleshooting.md` | 异常处理与降级路径 |
 | `references/save.md` | **存档读取**：格式、命令、规模参考、已知限制、组件构成与重建 |

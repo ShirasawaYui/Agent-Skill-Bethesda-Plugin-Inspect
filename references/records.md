@@ -147,10 +147,13 @@ for f in ctx.view(record).fields():
    
    **最终仍以游戏内显示的 `REQUIRE n` 为准**（游戏 UI 会直接标出真实门槛）。
 
-### 判断"某 perk 是否在玩家技能树上"的经验规则
+### 判断"某 perk 是否在玩家技能树上"
 
-按以下顺序剔除（**启发式，不保证 100%**）：`EditorID 含 NULL` → `被 === 包裹` →
-`含 _NPC` → `FULL 为空`。剩下的大体就是星座图上的 perk。
+**别用 EditorID 前缀或"孤立性"去猜** —— 两套启发式都会误伤：异前缀的正当 perk（如铁匠的
+`FZR_*`）、以及被书 / 道具前置隔断的链条（如「格斗技艺」要有训练秘籍才能点）。
+**权威来源是 AVIF 记录里的节点表，见第 8 节。**
+
+读不到 AVIF 时才退回粗筛，顺序为：`EditorID 含 NULL` → `被 === 包裹` → `含 _NPC` → `FULL 为空`。
 
 ## 7. PERK 的实际数值效果怎么读
 
@@ -204,3 +207,52 @@ End Marker
 - 一条 perk 的多个 entry point **并列生效**；但「新手/学徒/老手/专家/大师」这类
   **按法术等级分档**的 perk 只作用于对应等级的法术，互不叠加
 - `Ability` 引用的法术通常是**无名隐藏法术**，解析不出名称属正常（如开锁专长就藏在其中）
+
+## 8. PERK 树的成员关系怎么读（在 AVIF 里）
+
+**技能树（星座图）不是 PERK 记录的一部分，也没有独立的"树"记录 —— 它挂在 `AVIF`（Actor Value，技能）记录上。**
+
+### 结构
+
+AVIF 前半段是元数据（`EDID` / `FULL` / `DESC` / [`CNAM`] / `AVSK`），
+**`AVSK` 之后是重复出现的节点组**：
+
+```
+PNAM FNAM XNAM YNAM HNAM VNAM SNAM CNAM [CNAM…] INAM    ← 一个节点
+```
+
+| 子记录 | 含义 |
+|---|---|
+| `PNAM` | 该节点的 **perk FormID**（4 字节，遵循本插件的 master 索引规则） |
+| `INAM` | 节点序号 |
+| `CNAM` | 连线目标（其它节点序号，可出现多次） |
+| `XNAM` / `YNAM` | 网格坐标 |
+| `HNAM` / `VNAM` / `SNAM` | 像素坐标与连线绘制字段 |
+| `FNAM` | 伴随字段 |
+
+**`PNAM` 为空的节点是树根锚点**，不是真 perk，读取时应跳过。
+
+### 判据
+
+> 一个 perk 属于哪棵树 ⇔ 它的 FormID 是否出现在该技能 AVIF 的 `PNAM` 列表里。
+
+这是**读取**而非推断，优先于 EditorID 前缀、`_NPC` 剔除、孤立性等一切启发式。
+
+### 三个陷阱
+
+1. **技能树本身也会被覆盖，且不同技能可能由不同插件提供。** AVIF 同样受 load order 决定 ——
+   必须**按技能逐棵**找 load order 里最后一个定义该 `AVIF` 的插件。
+   实测（同一整合包内）：铁匠＝`Fozars_Dragonborn_-_Requiem_Patch.esp`，
+   箭术 / 重甲 / 轻甲＝`Requiem - EX combat.esp`，双手 / 炼金 / 附魔＝`REQ Chaos Valheim Mode.esp`，
+   恢复＝`Requiem - CW - Vicnmods.esp`，其余才轮到 Vokrii。
+   **假设"整棵树来自同一个插件"会整棵漏掉。**
+2. 节点里的 `PNAM` 是**原版 perk 的 FormID** —— perk 大修普遍复用原版 id 并改写记录内容。
+   因此把 FormID 解析成名字时**必须走 load order 归属**；只查 `Skyrim.esm` 只会读到原版旧名。
+3. 先列出 load order 中含 `AVIF` 的插件（通常只有个位数），再按技能取最靠后者，
+   可以省掉大量无谓扫描。
+
+### 最小实现
+
+1. 遍历插件，收集 `AVIF` 记录；
+2. 从 `AVSK` 起切分节点组（`PNAM` 起、`INAM` 止）；
+3. `PNAM` → （master 名 或 本插件，低 24 位）→ 走 load order 归属解析成 perk 名称。
