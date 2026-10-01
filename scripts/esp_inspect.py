@@ -295,13 +295,12 @@ def _read_order_and_enabled(plugins_txt):
     """返回 (load order 全序, plugins.txt 里带 `*` 的集合)。
 
     顺序取自同目录的 `loadorder.txt`（**全序**，含官方主文件与全部插件）；
-    `*` 集合取自 `plugins.txt`，并**补上 5 个官方主文件** —— 它们不写进 plugins.txt，
-    却可能改过记录（实测 Update.esm 改过 AVSmithing）。
+    `*` 集合取自 `plugins.txt`（`*` ＝ MO2 里勾选启用的插件），并**补上 5 个官方主文件** ——
+    它们不写进 plugins.txt，却可能改过记录（实测 Update.esm 改过 AVSmithing）。
 
-    ⚠ **不要把 `*` 当成"是否生效"的唯一依据**：实测本机 `plugins.txt` 里
-    `Vokrii - Minimalistic Perks of Skyrim.esp` 没有 `*`，但游戏内显然在用它的技能树
-    （有 enabled 插件以它为 master）。所以调用方**默认按 load order 全序扫描**，
-    只把"未勾选"作为提示信息打印出来；要严格过滤需显式打开 `--only-enabled`。
+    调用方按 `*` 过滤（即"下次启动会加载的插件"），但**必须把被过滤掉的名单打印出来** ——
+    `plugins.txt` 只反映 MO2 的最后一次写盘，可能与**正在运行的游戏**不同步；
+    此时可用 `--include-disabled` 一并扫描，以免结论与眼前所见对不上。
     """
     p = Path(plugins_txt)
     if p.is_dir():
@@ -457,7 +456,7 @@ def cmd_chain(args):
     missing = 0
     scanned = 0
     for pos, name in enumerate(order):
-        if args.only_enabled and name.lower() not in enabled:
+        if not args.include_disabled and name.lower() not in enabled:
             continue
         path = index.get(name.lower())
         if path is None:
@@ -654,17 +653,18 @@ def cmd_tree(args):
                                  args.dup_policy)
 
     unstarred = [n for n in order if n.lower() not in enabled]
+    scope_note = ("全部扫描（--include-disabled）" if args.include_disabled
+                  else f"按 plugins.txt 勾选过滤出 {len(order) - len(unstarred)} 个")
     print("Skyrim 原版星座树 · 替换关系（只读，不联网）")
     print(f"  配置档    : {plugins_txt.parent}")
     print(f"  mods 目录 : {mods_root}")
     print(f"  Data 目录 : {data_dir}")
-    print(f"  load order: {len(order)} 项"
-          f"{'（--only-enabled：只扫 plugins.txt 已勾选者）' if args.only_enabled else ''}")
-    if unstarred:
+    print(f"  load order: {len(order)} 项，{scope_note}")
+    if unstarred and not args.include_disabled:
         print(f"  未勾选    : {len(unstarred)} 个 —— {'、'.join(unstarred[:6])}"
               f"{' …' if len(unstarred) > 6 else ''}")
-        print("              默认仍按 load order 全序扫描（实测未勾选者也可能在游戏内生效）；"
-              "要严格过滤请加 --only-enabled")
+        print("              （plugins.txt 只反映 MO2 最后一次写盘，可能与正在运行的游戏不同步；"
+              "刚在 MO2 改过就加 --include-disabled 一并扫）")
 
     baseline = {}
     with bethkit.Plugin.open(data_dir / "Skyrim.esm", game) as pl:
@@ -677,7 +677,7 @@ def cmd_tree(args):
     winner, unmatched = {}, {}
     scanned = absent = failed = 0
     for pos, name in enumerate(order):
-        if args.only_enabled and name.lower() not in enabled:
+        if not args.include_disabled and name.lower() not in enabled:
             continue
         path = index.get(name.lower())
         if path is None:
@@ -787,8 +787,8 @@ def main():
     p.add_argument("local_id", help="本地 object_id，如 0x20000F")
     p.add_argument("--mods-root", default=None)
     p.add_argument("--signature", default=None, help="限定记录签名，如 NPC_")
-    p.add_argument("--only-enabled", action="store_true",
-                   help="只扫 plugins.txt 已勾选（带 *）的插件；默认按 load order 全序扫")
+    p.add_argument("--include-disabled", action="store_true",
+                   help="连 plugins.txt 未勾选（无 *）的插件一起扫；默认只扫已勾选的")
     p.set_defaults(func=cmd_chain)
 
     p = sub.add_parser("tree", parents=[common],
@@ -799,8 +799,8 @@ def main():
                    help="省略时从 mods 目录向上查找含 Skyrim.esm 的 Data")
     p.add_argument("--dup-policy", default="first", choices=("first", "last"),
                    help="重名插件的取用方向（默认 first＝modlist 行首）")
-    p.add_argument("--only-enabled", action="store_true",
-                   help="只扫 plugins.txt 已勾选（带 *）的插件；默认按 load order 全序扫")
+    p.add_argument("--include-disabled", action="store_true",
+                   help="连 plugins.txt 未勾选（无 *）的插件一起扫；默认只扫已勾选的")
     p.set_defaults(func=cmd_tree)
 
     p = sub.add_parser("save", parents=[common],
