@@ -85,3 +85,54 @@
 ```
 
 输出落在**当前工作目录**（不是 pex 所在目录），用 `cd` 控制落点。
+
+## 6. PERK 的前置条件怎么读
+
+PERK 记录里**两类 CTDA 含义完全不同**：
+
+| 位置 | 含义 |
+|---|---|
+| **第一个 `DATA` 子记录之前**的 CTDA | **学习前置条件**（所需技能等级、需先拥有的 Perk） |
+| `DATA` 之后、夹在 `PRKE`…`PRKF` 之间的 CTDA | 该 perk 的**生效**条件，不是前置 |
+
+**只取第一个 `DATA` 之前的那批 CTDA**，即可还原"点亮它需要什么"。
+
+### CTDA 的 32 字节布局
+
+| 偏移 | 长度 | 含义 |
+|---|---|---|
+| 0 | 1 | 比较符：`0x00`=等于、`0x20`=不等于、`0x40`=大于、`0x60`=大于等于、`0x80`=小于、`0xA0`=小于等于 |
+| 4 | 4 | 比较值（float） |
+| 8 | 2 | 函数索引（uint16） |
+| 12 | 4 | 参数 1 |
+| 16 | 4 | 参数 2 |
+| 20 | 4 | 作用对象（Run On） |
+| 28 | 4 | 参数 3 |
+
+### 两个最常用的函数索引
+
+| 索引 | 函数 | 参数 1 的含义 |
+|---:|---|---|
+| `277` | `GetActorValue` | **ActorValue 索引**（6=单手、7=双手、10=铁匠、20=毁灭系、22=恢复系…） |
+| `448` | `HasPerk` | **被要求的 perk 的 FormID**（高字节超过 master 数即指向本插件） |
+
+例：`函数=277、参数1=20、比较值=20.0、比较符=>=` 读作「**毁灭系 ≥ 20**」。
+
+**免去手工解析**：内置 schema 能把条件解成命名后的字段（含枚举与 FormId 类型）：
+
+```python
+cat = bethkit.SchemaCatalog.embedded()
+ctx = bethkit.SemanticContext(package=cat.package(bethkit.Game.SKYRIM_SE))
+for f in ctx.view(record).fields():
+    if f.name == "CTDA":
+        ...   # 每项含 Function / Comparison Value / Parameter #1
+```
+
+### 三个必须知道的陷阱
+
+1. **EditorID 里的数字不是权威等级**。实测：`VKR_Des_020_DestructionDualCasting` 的 EditorID 写 `020`，
+   CTDA 实际要求 **25**；`MagicResistance2` 写 `025`，实际要 **50**。**等级一律以 CTDA 为准。**
+2. **`_NPC` 后缀的记录不属于玩家技能树**。它们同前缀、同命名风格，但只挂在 NPC 上，
+   混进列表会误导（例：`VKR_Des_060_ImpactNPC`）。
+3. **FULL / DESC 均为空的记录是空壳**。常见于被后续插件覆盖致失效的原版 perk
+   （如整合包里的 `REQ_NULL_*`），应单独归入附录而非主表。
