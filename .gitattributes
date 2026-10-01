@@ -1,0 +1,7 @@
+# 统一换行符，避免跨平台脚本因 CRLF 出问题
+* text=auto eol=lf
+
+# 二进制文件不做换行转换
+*.png binary
+*.exe binary
+*.dll binary

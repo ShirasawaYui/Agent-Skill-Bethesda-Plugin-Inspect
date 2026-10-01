@@ -1,0 +1,13 @@
+# 校验与本地产物
+__pycache__/
+*.py[cod]
+validation-report.json
+
+# 编辑器与系统
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# 本地自用：如需内置第三方工具，放在 tools/ 下，不要提交
+tools/
