@@ -136,6 +136,21 @@ for f in ctx.view(record).fields():
    混进列表会误导（例：`VKR_Des_060_ImpactNPC`）。
 3. **FULL / DESC 均为空的记录是空壳**。常见于被后续插件覆盖致失效的原版 perk
    （如整合包里的 `REQ_NULL_*`），应单独归入附录而非主表。
+4. **EditorID 带 `NULL` 或被 `===` 包裹 = 已被禁用**。Requiem 系整合包惯用手法：把原版 perk
+   **改名加 `NULL` 后缀来屏蔽** —— 记录还在、FULL 名甚至已被汉化，但**游戏内不显示、不可点**。
+   实测例：`===VKR_Alc_100_DoubleToilAndTrouble_PerkNULL===`（表里写作「不辞辛劳」）、
+   `===VKR_Loc_070_DungeonMaster_PerkNULL===`（「地牢大师」）。
+   **不剔除这类记录，会给出"能点却点不了"的错误建议**（已实际踩过一次，靠用户截图才发现）。
+5. **等级门槛 = max(EditorID 三位编号, CTDA 值)**。两者互相补位：
+   - Mastery 组在 EditorID 里一律写 `000` → 靠 CTDA 给出 20 / 40 / 65 / 90
+   - `VKR_Res_070_Necromage` 这类 EditorID 写明编号、**CTDA 却没有等级条件** → 靠 EditorID
+   
+   **最终仍以游戏内显示的 `REQUIRE n` 为准**（游戏 UI 会直接标出真实门槛）。
+
+### 判断"某 perk 是否在玩家技能树上"的经验规则
+
+按以下顺序剔除（**启发式，不保证 100%**）：`EditorID 含 NULL` → `被 === 包裹` →
+`含 _NPC` → `FULL 为空`。剩下的大体就是星座图上的 perk。
 
 ## 7. PERK 的实际数值效果怎么读
 
