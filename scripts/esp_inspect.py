@@ -651,6 +651,12 @@ def cmd_tree(args):
 
     index, dups = _index_plugins(mods_root, plugins_txt.parent / "modlist.txt",
                                  args.dup_policy)
+    # 官方主文件住在 Data、MO2 的 Overwrite 里也可能有散装插件 —— 一并纳入，
+    # 否则它们永远不会出现在覆盖链里（实测 Update.esm 改过 AVSmithing）。
+    for extra in (data_dir, Path(mods_root).parent / "overwrite"):
+        if extra and Path(extra).is_dir():
+            for f in _scan_plugins(extra):
+                index.setdefault(f.name.lower(), f)
 
     unstarred = [n for n in order if n.lower() not in enabled]
     scope_note = ("全部扫描（--include-disabled）" if args.include_disabled
