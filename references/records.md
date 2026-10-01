@@ -293,6 +293,12 @@ PNAM FNAM XNAM YNAM HNAM VNAM SNAM CNAM [CNAM…] INAM    ← 一个节点
    就会出现**静默丢弃** —— 读不到也不报错，结论却变成"没有该改动"。
 4. **旧式 `plugins.txt`（无 `*`、只列启用者）**会让"只看 `*`"的解析把全部插件误判为未启用。
    换 profile 前先确认格式。
+5. **`plugins.txt` 里的 `*` 不能当"是否生效"的依据。** 实测本机
+   `Vokrii - Minimalistic Perks of Skyrim.esp` 那一行**没有 `*`**，但游戏内显然在用它的技能树 ——
+   两个已勾选插件（`Vokrii - Shadow Spell Package Patch.esp`、`Requiem - EX combat.esp`）
+   的 masters 列表里都列着它。
+   → **默认直接按 `loadorder.txt` 全序扫描**，把"未勾选"只当提示打印出来；要严格过滤得显式开关。
+   （早期实现按 `*` 过滤，结果把 Vokrii 整条从覆盖链里**静默删掉** —— 与上面第 3 条同一类错。）
 
 ### 三个陷阱
 
@@ -308,6 +314,9 @@ PNAM FNAM XNAM YNAM HNAM VNAM SNAM CNAM [CNAM…] INAM    ← 一个节点
    但这条捷径只决定"从哪些文件读"，**不改变上面的末端判定口径**。
 
 ### 最小实现
+
+> **已脚本化**：`esp_inspect.py tree <MO2 配置档目录>` —— 一行一棵输出「技能 → 覆盖链 → 末端生效插件」。
+> 下面写的是它的原理，供复核原理、或换环境重写时参考。
 
 **路径 A —— 只求「哪棵树归谁」（不做成员归属）**
 

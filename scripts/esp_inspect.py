@@ -21,6 +21,25 @@ from pathlib import Path
 
 PLUGIN_EXT = {".esp", ".esm", ".esl"}
 
+# MO2 不把官方主文件写进 plugins.txt，但它们在 loadorder.txt 里，且可能改过记录
+# （实测：Update.esm 改过 AVSmithing，USSEP 改过 AVDestruction）
+OFFICIAL_MASTERS = {
+    "skyrim.esm", "update.esm", "dawnguard.esm", "hearthfires.esm", "dragonborn.esm",
+}
+
+# Skyrim 原版 18 棵星座树的载体 AVIF。
+# ⚠ 幻术树那条记录叫 AVMysticism —— 上古卷轴 4 的旧名（4 代该学派叫 Mysticism），
+#   5 代改了学派名却没改记录名；AVIllusionMod / AVIllusionPowerMod /
+#   AVIllusionSkillAdvance 三条只是修饰用 actor value，不是树。
+SKILL_AVIF = [
+    ("AVOneHanded", "单手武器"), ("AVTwoHanded", "双手武器"), ("AVMarksman", "箭术"),
+    ("AVBlock", "格挡"), ("AVSmithing", "铁匠"), ("AVHeavyArmor", "重甲"),
+    ("AVLightArmor", "轻甲"), ("AVPickpocket", "扒窃"), ("AVLockpicking", "开锁"),
+    ("AVSneak", "潜行"), ("AVAlchemy", "炼金"), ("AVSpeechcraft", "口才"),
+    ("AVAlteration", "变化"), ("AVConjuration", "召唤"), ("AVDestruction", "毁灭"),
+    ("AVMysticism", "幻术"), ("AVRestoration", "恢复"), ("AVEnchanting", "附魔"),
+]
+
 OPTIONAL_TOOLS = (
     ("Champollion", "champollion/Champollion.exe",
      "https://github.com/Orvid/Champollion/releases  (LGPL-3.0)"),
@@ -29,18 +48,24 @@ OPTIONAL_TOOLS = (
 )
 
 INSTALL_HINT = """\
-bethkit 不可用。安装方式：
+bethkit 不可用。在**任意**隔离环境里装上即可 —— 不绑定本机路径，换台机器也能跑：
 
-  # 建隔离环境（已存在则跳过）
-  <PYTHON> -m venv "C:/Users/Administrator/.workbuddy/binaries/python/envs/default"
+  # 1) 建隔离环境（已存在则跳过）；<PYTHON> 是任意 Python 3.10+，<VENV> 换成你自己的路径
+  <PYTHON> -m venv <VENV>
 
-  # 安装
-  "C:/Users/Administrator/.workbuddy/binaries/python/envs/default/Scripts/pip.exe" install bethkit
+  # 2) 安装
+  <VENV>\\Scripts\\pip.exe install bethkit      （Windows）
+  <VENV>/bin/pip install bethkit               （macOS / Linux）
 
-  # 验证
-  "C:/Users/Administrator/.workbuddy/binaries/python/envs/default/Scripts/python.exe" -c "import bethkit; print('ok')"
+  # 3) 验证
+  <VENV>\\Scripts\\python.exe -c "import bethkit; print('ok')"
 
-仓库与更新说明见 references/bethkit.md。
+装好后用它的解释器调用本脚本：
+
+  <VENV>\\Scripts\\python.exe esp_inspect.py <子命令> ...
+
+参考：安装、检查更新与回滚见 references/bethkit.md。
+本脚本不含任何绝对路径 —— 所有位置都由命令行参数传入，或从参数向上查找派生。
 """
 
 
@@ -266,16 +291,129 @@ def cmd_dump(args):
 
 # ---------------------------------------------------------------- chain
 
-def _read_load_order(plugins_txt):
-    order = []
-    raw = Path(plugins_txt).read_text(encoding="utf-8-sig", errors="replace")
-    for line in raw.splitlines():
+def _read_order_and_enabled(plugins_txt):
+    """返回 (load order 全序, plugins.txt 里带 `*` 的集合)。
+
+    顺序取自同目录的 `loadorder.txt`（**全序**，含官方主文件与全部插件）；
+    `*` 集合取自 `plugins.txt`，并**补上 5 个官方主文件** —— 它们不写进 plugins.txt，
+    却可能改过记录（实测 Update.esm 改过 AVSmithing）。
+
+    ⚠ **不要把 `*` 当成"是否生效"的唯一依据**：实测本机 `plugins.txt` 里
+    `Vokrii - Minimalistic Perks of Skyrim.esp` 没有 `*`，但游戏内显然在用它的技能树
+    （有 enabled 插件以它为 master）。所以调用方**默认按 load order 全序扫描**，
+    只把"未勾选"作为提示信息打印出来；要严格过滤需显式打开 `--only-enabled`。
+    """
+    p = Path(plugins_txt)
+    if p.is_dir():
+        p = p / "plugins.txt"
+    enabled, listed = set(OFFICIAL_MASTERS), []
+    for line in p.read_text(encoding="utf-8-sig", errors="replace").splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
         if line.startswith("*"):
-            order.append(line[1:].strip())
-    return order
+            name = line[1:].strip()
+            if name:
+                enabled.add(name.lower())
+                listed.append(name)
+    order_file = p.parent / "loadorder.txt"
+    order = []
+    if order_file.is_file():
+        for line in order_file.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                order.append(line)
+    if not order:
+        order = listed
+    return order, enabled
+
+
+def _find_data_dir(mods_root):
+    """从 mods 目录向上找含 Skyrim.esm 的 Data 目录（MO2 便携实例装在游戏目录内）。"""
+    for parent in list(Path(mods_root).resolve().parents)[:5]:
+        cand = parent / "Data"
+        if (cand / "Skyrim.esm").is_file():
+            return cand
+    return None
+
+
+def _index_plugins(mods_root, modlist_txt=None, dup_policy="first"):
+    """插件文件名 -> 路径。重名时按 `modlist.txt` 行序取（行首＝高优先级，依 MO2 惯例）。
+
+    返回 (index, dups)：dups 只收「重名且各副本大小不一致」的项，附带全部候选，
+    以便明确告知取用了哪一份 —— MO2/mods 下同一个插件名可能有多份副本。
+    """
+    rank = {}
+    if modlist_txt and Path(modlist_txt).is_file():
+        for i, line in enumerate(Path(modlist_txt).read_text(
+                encoding="utf-8-sig", errors="replace").splitlines()):
+            line = line.strip().lstrip("+-")
+            if line and not line.startswith("#"):
+                rank.setdefault(line.lower(), i)
+
+    groups = {}
+    for f in _scan_plugins(mods_root):
+        groups.setdefault(f.name.lower(), []).append(f)
+
+    index, dups = {}, {}
+    for name, paths in groups.items():
+        if len(paths) == 1:
+            index[name] = paths[0]
+            continue
+
+        def _key(f, _root=Path(mods_root)):
+            try:
+                mod = f.relative_to(_root).parts[0].lower()
+            except Exception:
+                mod = ""
+            r = rank.get(mod, 10 ** 6)
+            return r if dup_policy == "first" else -r
+
+        ordered = sorted(paths, key=_key)
+        index[name] = ordered[0]
+        if len({f.stat().st_size for f in paths}) > 1:
+            dups[name] = ordered
+    return index, dups
+
+
+def _avif_identities(plugin, filename):
+    """返回 [(owner_plugin_name, lo, editor_id)] —— 记录身份，不看内容。
+
+    owner 换算：formid 高字节 < master 数量 → 引用第 N 个 master；≥ → 本插件自身。
+    """
+    masters = []
+    mc = getattr(plugin, "master_count", 0)
+    mc = mc() if callable(mc) else mc
+    for i in range(mc):
+        try:
+            masters.append(str(plugin.master_at(i)).lower())
+        except Exception:
+            masters.append("")
+    me = str(filename).lower()
+    out = []
+    for r in _iter_records(plugin):
+        if r.signature != b"AVIF":
+            continue
+        f = r.form_id
+        hi, lo = f >> 24, f & 0xFFFFFF
+        owner = me if hi >= len(masters) else masters[hi]
+        try:
+            eid = r.editor_id
+        except Exception:
+            eid = "?"
+        out.append((owner, lo, eid))
+    return out
+
+
+def _avif_nodes(plugin, want_sigs=("AVSK", "PNAM")):
+    """返回 {local_id: (PNAM 节点数, 是否含 AVSK)} —— 用来判断"是不是一棵树"。"""
+    out = {}
+    for r in _iter_records(plugin):
+        if r.signature != b"AVIF":
+            continue
+        sigs = _subrecord_sigs(r)
+        out[r.form_id & 0xFFFFFF] = (sigs.count(want_sigs[1]), want_sigs[0] in sigs)
+    return out
 
 
 def _infer_mods_root(plugins_txt):
@@ -292,9 +430,9 @@ def cmd_chain(args):
     bethkit = _import_bethkit()
     game = _game(bethkit, args.game)
 
-    order = _read_load_order(args.plugins_txt)
+    order, enabled = _read_order_and_enabled(args.plugins_txt)
     if not order:
-        print("plugins.txt 中没有启用项（以 * 开头的行）。", file=sys.stderr)
+        print("plugins.txt 中没有可用条目。", file=sys.stderr)
         return 2
 
     mods_root = Path(args.mods_root) if args.mods_root else _infer_mods_root(args.plugins_txt)
@@ -302,15 +440,14 @@ def cmd_chain(args):
         print("无法确定 mods 目录，请用 --mods-root 指定。", file=sys.stderr)
         return 2
 
-    index = {}
-    for p in _scan_plugins(mods_root):
-        index.setdefault(p.name.lower(), p)
+    index, _dups = _index_plugins(
+        mods_root, Path(args.plugins_txt).parent / "modlist.txt")
 
     local_id = int(args.local_id, 16) if args.local_id.lower().startswith("0x") \
         else int(args.local_id)
     want_sig = args.signature.encode("ascii") if args.signature else None
 
-    print(f"load order: {len(order)} 个启用插件")
+    print(f"load order: {len(order)} 项，plugins.txt 已勾选 {len(enabled)} 个（含 5 个官方主文件）")
     print(f"mods 目录 : {mods_root}")
     print(f"目标      : local_id={hex(local_id)}"
           f"{'  signature=' + args.signature if args.signature else ''}\n")
@@ -318,11 +455,15 @@ def cmd_chain(args):
     t0 = time.time()
     chain = []
     missing = 0
+    scanned = 0
     for pos, name in enumerate(order):
+        if args.only_enabled and name.lower() not in enabled:
+            continue
         path = index.get(name.lower())
         if path is None:
             missing += 1
             continue
+        scanned += 1
         try:
             with bethkit.Plugin.open(path, game) as pl:
                 for r in _iter_records(pl):
@@ -341,7 +482,7 @@ def cmd_chain(args):
             print(f"  ! {name}: {type(e).__name__}: {e}")
 
     if not chain:
-        print(f"未找到该记录（扫描 {len(order) - missing} 个插件，耗时 {time.time() - t0:.1f}s）。")
+        print(f"未找到该记录（扫描 {scanned} 个插件，耗时 {time.time() - t0:.1f}s）。")
         if missing:
             print(f"另有 {missing} 个插件未在 mods 目录中找到。")
         return 1
@@ -482,6 +623,133 @@ def cmd_save(args):
         return 2
 
 
+# ---------------------------------------------------------------- tree
+
+def cmd_tree(args):
+    """原版星座树的替换关系：一行一棵输出「技能 → 覆盖链 → 末端生效插件」。
+
+    仅适用于 **Skyrim 原版技能树**。自定义技能树框架（Custom Skills Framework 系列，
+    如 EldenPerkTree）不写 AVIF 记录，本命令看不见它们。
+    """
+    bethkit = _import_bethkit()
+    game = _game(bethkit, args.game)
+
+    prof = Path(args.profile)
+    plugins_txt = (prof / "plugins.txt") if prof.is_dir() else prof
+    if not plugins_txt.is_file():
+        print(f"找不到 plugins.txt：{plugins_txt}", file=sys.stderr)
+        return 2
+
+    order, enabled = _read_order_and_enabled(plugins_txt)
+    mods_root = Path(args.mods_root) if args.mods_root else _infer_mods_root(plugins_txt)
+    if mods_root is None or not mods_root.is_dir():
+        print("无法确定 mods 目录，请用 --mods-root 指定。", file=sys.stderr)
+        return 2
+    data_dir = Path(args.data_dir) if args.data_dir else _find_data_dir(mods_root)
+    if data_dir is None or not (data_dir / "Skyrim.esm").is_file():
+        print("找不到 Skyrim.esm，请用 --data-dir 指定游戏的 Data 目录。", file=sys.stderr)
+        return 2
+
+    index, dups = _index_plugins(mods_root, plugins_txt.parent / "modlist.txt",
+                                 args.dup_policy)
+
+    unstarred = [n for n in order if n.lower() not in enabled]
+    print("Skyrim 原版星座树 · 替换关系（只读，不联网）")
+    print(f"  配置档    : {plugins_txt.parent}")
+    print(f"  mods 目录 : {mods_root}")
+    print(f"  Data 目录 : {data_dir}")
+    print(f"  load order: {len(order)} 项"
+          f"{'（--only-enabled：只扫 plugins.txt 已勾选者）' if args.only_enabled else ''}")
+    if unstarred:
+        print(f"  未勾选    : {len(unstarred)} 个 —— {'、'.join(unstarred[:6])}"
+              f"{' …' if len(unstarred) > 6 else ''}")
+        print("              默认仍按 load order 全序扫描（实测未勾选者也可能在游戏内生效）；"
+              "要严格过滤请加 --only-enabled")
+
+    baseline = {}
+    with bethkit.Plugin.open(data_dir / "Skyrim.esm", game) as pl:
+        for owner, lo, eid in _avif_identities(pl, "Skyrim.esm"):
+            baseline[(owner, lo)] = eid
+    print(f"  基线      : Skyrim.esm 共 {len(baseline)} 条 AVIF（只取身份，不解析内容）\n")
+
+    t0 = time.time()
+    chain = {k: [] for k in baseline}
+    winner, unmatched = {}, {}
+    scanned = absent = failed = 0
+    for pos, name in enumerate(order):
+        if args.only_enabled and name.lower() not in enabled:
+            continue
+        path = index.get(name.lower())
+        if path is None:
+            absent += 1
+            continue
+        scanned += 1
+        try:
+            with bethkit.Plugin.open(path, game) as pl:
+                for owner, lo, eid in _avif_identities(pl, name):
+                    key = (owner, lo)
+                    if key in baseline:
+                        chain[key].append((pos, name))
+                        winner[key] = (pos, name, path)
+                    else:
+                        unmatched[(name, owner, lo)] = eid
+        except Exception as e:
+            failed += 1
+            print(f"  ! {name}: {type(e).__name__}: {e}")
+
+    cache = {}
+
+    def nodes_of(path):
+        if path not in cache:
+            try:
+                with bethkit.Plugin.open(path, game) as pl:
+                    cache[path] = _avif_nodes(pl)
+            except Exception:
+                cache[path] = {}
+        return cache[path]
+
+    print(f"{'AVIF':<19} {'技能':<5} {'节点':>3}  末端生效插件")
+    print("-" * 78)
+    modded = 0
+    for eid, cn in SKILL_AVIF:
+        key = next((k for k, v in baseline.items() if v == eid), None)
+        if key is None:
+            print(f"{eid:<19} {cn:<5} {'-':>3}  基线里没有这条 AVIF")
+            continue
+        ch = chain.get(key) or []
+        if len(ch) <= 1:
+            print(f"{eid:<19} {cn:<5} {'-':>3}  无人修改（仍用原版）")
+            continue
+        pos, name, path = winner[key]
+        n, has_avsk = nodes_of(path).get(key[1], (0, False))
+        if not has_avsk or n == 0:
+            print(f"{eid:<19} {cn:<5} {n:>3}  [{pos:>3}] {name}   ⚠ 无节点组，可能不是树")
+            continue
+        modded += 1
+        print(f"{eid:<19} {cn:<5} {n:>3}  [{pos:>3}] {name}")
+        print(f"{'':<19} {'':<5} {'':>3}       链：{' → '.join(x[1] for x in ch)}")
+
+    print("-" * 78)
+    print(f"被人修改过的树 {modded} / 18　｜　扫描 {scanned} 个插件"
+          f"（{absent} 个文件缺失，{failed} 个读取失败）　｜　耗时 {time.time() - t0:.1f}s")
+
+    if dups:
+        print(f"\n⚠ 重名插件 {len(dups)} 组（副本大小不一致，按 --dup-policy={args.dup_policy} 取用）：")
+        for nm, paths in sorted(dups.items()):
+            print(f"  {nm}")
+            for f in paths:
+                mark = "← 采用" if f == index[nm] else ""
+                print(f"      {f.parent.name}  ({f.stat().st_size} B) {mark}")
+        print("  取用方向依 MO2 惯例推断（行首＝高优先级），未在本机验证；以 MO2 左侧面板为准。")
+    else:
+        print("\n✓ 无内容不一致的重名插件")
+
+    print(f"未匹配到基线的 AVIF：{len(unmatched)} 条"
+          + ("（说明基线之外还有自建 AVIF，见 references/records.md 第 8 节）"
+             if unmatched else "（即没有插件自建新 AVIF）"))
+    return 0
+
+
 # ---------------------------------------------------------------- main
 
 def main():
@@ -519,7 +787,21 @@ def main():
     p.add_argument("local_id", help="本地 object_id，如 0x20000F")
     p.add_argument("--mods-root", default=None)
     p.add_argument("--signature", default=None, help="限定记录签名，如 NPC_")
+    p.add_argument("--only-enabled", action="store_true",
+                   help="只扫 plugins.txt 已勾选（带 *）的插件；默认按 load order 全序扫")
     p.set_defaults(func=cmd_chain)
+
+    p = sub.add_parser("tree", parents=[common],
+                       help="原版星座树的替换关系（仅 Skyrim 原版技能树）")
+    p.add_argument("profile", help="MO2 配置档目录（或其中的 plugins.txt）")
+    p.add_argument("--mods-root", default=None, help="省略时从配置档目录向上查找 MO2/mods")
+    p.add_argument("--data-dir", default=None,
+                   help="省略时从 mods 目录向上查找含 Skyrim.esm 的 Data")
+    p.add_argument("--dup-policy", default="first", choices=("first", "last"),
+                   help="重名插件的取用方向（默认 first＝modlist 行首）")
+    p.add_argument("--only-enabled", action="store_true",
+                   help="只扫 plugins.txt 已勾选（带 *）的插件；默认按 load order 全序扫")
+    p.set_defaults(func=cmd_tree)
 
     p = sub.add_parser("save", parents=[common],
                        help="读取 Skyrim 存档（.ess）内容：info / globals / inventory / forms")

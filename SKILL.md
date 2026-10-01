@@ -4,7 +4,7 @@ display_name: 结衣的Bethesda模组内容分析助手
 description: 直接读取 Bethesda 游戏插件（esp/esm/esl）记录，定位某个 mod 改了什么——角色参数、任务流程、道具效果、脚本挂载，并还原 load order 覆盖链确认最终生效值。当用户问「这个 mod 改了什么」「某条记录的最终数值是多少」「这个脚本里写了什么」时使用。不用于修改或编译插件（写操作请用 SSEEdit），不做模型贴图等资源内容的视觉查看。
 description_zh: 读取 Bethesda 游戏插件（esp/esm/esl）记录，定位某个 mod 改了什么内容——角色参数、任务流程、道具效果、脚本挂载，并还原 load order 覆盖链确认最终生效值。附带 pex 脚本反编译与 bsa/ba2 归档读取路径。
 description_en: Read Bethesda game plugin (esp/esm/esl) records to find out what a mod changes — actor stats, quest flow, item effects, script attachments — and resolve the load-order override chain to determine the finally effective value. Also covers pex decompilation and bsa/ba2 archive reading.
-version: 1.3.11
+version: 1.4.0
 author: Yui
 license: MIT
 agent_created: true
@@ -92,6 +92,18 @@ metadata:
 3. 生效版与首版的字段差异（可能多出脚本挂载、法术、Perk 等关键子记录）
 
 **给出任何结论前都要先完成归因。**
+
+### 4 技能树归属 —— 18 棵星座树各归哪个插件（仅 Skyrim）
+
+```bash
+"$PY" scripts/esp_inspect.py tree <MO2 配置档目录>
+```
+
+一行一棵输出「技能 → 覆盖链 → 末端生效插件」，并给出节点数（证明确实是棵树）。
+`--mods-root` / `--data-dir` 省略时自动上溯查找，无需写死路径。
+
+**仅限 Skyrim 原版技能树**：自定义技能树框架（CSF 系列，如 `EldenPerkTree.esp`）不写 AVIF 记录，
+本命令看不见。原理与四个已知陷阱见 `references/records.md` 第 8 节。
 
 ## 分支
 

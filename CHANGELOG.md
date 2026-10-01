@@ -9,6 +9,28 @@
 
 ---
 
+## 1.4.0 — 2026-10-01
+
+**新增子命令 `tree`** —— 把「原版星座树替换关系」这套流程脚本化
+
+- ✚ `esp_inspect.py tree <MO2 配置档目录>`：一行一棵输出 `技能 → 覆盖链 → 末端生效插件`，
+  并给出节点数（证明它确实是棵树）。等价于第 8 节「最小实现」的路径 A。
+- ✚ 路径**全部靠参数传入或向上查找派生**，不写死任何绝对路径：
+  `--mods-root` 省略时从配置档目录上溯找 `MO2/mods`；
+  `--data-dir` 省略时从 mods 目录上溯找含 `Skyrim.esm` 的 `Data`
+- ✚ **`plugins.txt` 的 `*` 改为只作提示，不再作为过滤依据**（默认按 `loadorder.txt` 全序扫描，
+  要严格过滤加 `--only-enabled`）。原因：实测 `Vokrii - Minimalistic Perks of Skyrim.esp`
+  那一行没有 `*`，但游戏内显然在用它的技能树 —— 两个已勾选插件
+  （`Vokrii - Shadow Spell Package Patch.esp`、`Requiem - EX combat.esp`）的 masters 里都列着它。
+  早期实现按 `*` 过滤，曾把 Vokrii 整条从覆盖链里静默删掉，与已知漏洞第 3 条同类。
+- ✚ 顺带修掉两类此前记录过的漏洞：
+  - **重名插件**：索引改为按 `modlist.txt` 行序取用，并在输出里列出「重名且副本大小不一致」的
+    全部候选与采用项（此前 `setdefault` 取到的是先遇到的那份，未必是 MO2 实际加载的）
+  - **静默丢弃**：身份不在基线里的 AVIF 现在进"未匹配"桶并计数输出，不再无声消失
+- ✚ 修正 `chain` 的顺序来源：改用 `loadorder.txt`（全序）而非 `plugins.txt` 的 `*` 行 ——
+  后者不含官方主文件，会漏掉 `Update.esm` 这类改动
+- ✚ `INSTALL_HINT` 去掉写死的本机 venv 绝对路径，改为占位符（真实路径见 `references/bethkit.md`）
+
 ## 1.3.11 — 2026-10-01
 
 **仅补充参考文档（脚本无变更）** —— 按用户要求标注适用范围
