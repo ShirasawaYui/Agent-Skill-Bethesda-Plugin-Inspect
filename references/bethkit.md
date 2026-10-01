@@ -1,5 +1,7 @@
 # bethkit 引述文档
 
+> 版本：v1.0.0 · 最后更新：2026-10-01
+
 > **本文件是 bethkit 工具本身的引述资料（出处、安装、更新、回滚），不属于本技能的工作流。**
 > 工作流见 `SKILL.md` 与 `references/workflow.md`；API 用法见 `references/api.md`。
 

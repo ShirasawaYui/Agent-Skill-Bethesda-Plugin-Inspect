@@ -1,5 +1,7 @@
 # bethkit API 速查
 
+> 版本：v1.0.0 · 最后更新：2026-10-01
+
 面向"读插件"的高频调用与陷阱。完整定义见 https://github.com/Modding-Forge/bethkit.py 。
 
 ## 1. 对象模型

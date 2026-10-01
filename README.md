@@ -34,6 +34,7 @@ A skill for reading Bethesda game plugin records: find out what a mod changes, a
 | 覆盖关系（谁压谁、最终生效的是谁） | 还原 load order 覆盖链 |
 | 资源清单（归档里有什么） | 读 `bsa` / `ba2` |
 | 脚本行为 | 记录 `VMAD` → 反编译对应 `.pex` |
+| **存档运行时状态**（角色 / 全局变量 / 背包 / 变更统计） | 读 `.ess` 存档 |
 
 字段解码使用 **xEdit 官方 schema**（随 bethkit 内置，标注 `xedit-4.1.5f`），因此解出的字段名与 SSEEdit 界面一致，可相互验证。
 
@@ -82,6 +83,22 @@ python -m venv <你的 venv>
 ```
 
 注意这个例子：首版 44 个子记录、无脚本；生效版 86 个子记录、挂了脚本，EditorID 也被改过名。**只看首版会得出完全错误的结论。**
+
+## 随附组件
+
+`tools/save-reader/` —— 读取存档（`.ess`）里的**运行时状态**：角色摘要、全局变量、背包、各类记录的变更统计。
+
+引擎为 [ReSaver / FallrimTools](https://github.com/mdfairch/FallrimTools)（Apache-2.0，许可证已随附），
+入口是本项目写的薄封装，只调用引擎的公开 API。**需要 Java 8 或更高**。
+
+```bash
+"$PY" scripts/esp_inspect.py save info      <存档.ess>
+"$PY" scripts/esp_inspect.py save globals   <存档.ess> [过滤词]
+"$PY" scripts/esp_inspect.py save inventory <存档.ess>
+"$PY" scripts/esp_inspect.py save forms     <存档.ess>
+```
+
+细节与限制见 [`references/save.md`](references/save.md)。
 
 ## 可选工具（不在本仓库内分发）
 

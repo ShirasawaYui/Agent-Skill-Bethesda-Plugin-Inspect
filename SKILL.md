@@ -4,7 +4,7 @@ display_name: 结衣的Bethesda模组内容分析助手
 description: 直接读取 Bethesda 游戏插件（esp/esm/esl）记录，定位某个 mod 改了什么——角色参数、任务流程、道具效果、脚本挂载，并还原 load order 覆盖链确认最终生效值。当用户问「这个 mod 改了什么」「某条记录的最终数值是多少」「这个脚本里写了什么」时使用。不用于修改或编译插件（写操作请用 SSEEdit），不做模型贴图等资源内容的视觉查看。
 description_zh: 读取 Bethesda 游戏插件（esp/esm/esl）记录，定位某个 mod 改了什么内容——角色参数、任务流程、道具效果、脚本挂载，并还原 load order 覆盖链确认最终生效值。附带 pex 脚本反编译与 bsa/ba2 归档读取路径。
 description_en: Read Bethesda game plugin (esp/esm/esl) records to find out what a mod changes — actor stats, quest flow, item effects, script attachments — and resolve the load-order override chain to determine the finally effective value. Also covers pex decompilation and bsa/ba2 archive reading.
-version: 1.2.0
+version: 1.3.0
 author: Yui
 license: MIT
 agent_created: true
@@ -24,6 +24,7 @@ metadata:
 - 查某条记录的最终生效值（多个插件都改过它）
 - 读 pex 脚本内容
 - 查看 bsa/ba2 归档里的资源清单
+- 读存档里的运行时状态（角色、全局变量、背包、各类记录的变更统计）
 
 ## 何时不使用
 
@@ -120,6 +121,22 @@ with bethkit.Archive.open(path_bsa) as ar:
 
 如需命令行工具批量处理，见下方「可选工具」。
 
+## 存档（运行时数据）
+
+插件记录是**静态定义**（这个 mod 声明要做什么），存档里才是**运行时实际值**（实际发生了什么）。
+两者对照，才能判断一处改动是否真的生效。
+
+```bash
+"$PY" scripts/esp_inspect.py save info      <存档.ess>            # 摘要：角色 / 等级 / 种族 / 位置 / 游戏日期
+"$PY" scripts/esp_inspect.py save globals   <存档.ess> [过滤词]    # 全局变量表，可按关键词筛选
+"$PY" scripts/esp_inspect.py save inventory <存档.ess>            # 玩家背包
+"$PY" scripts/esp_inspect.py save forms     <存档.ess>            # 各类记录的变更数量统计
+```
+
+解析由随附的 `tools/save-reader/` 完成（引擎为 ReSaver / FallrimTools，Apache-2.0），
+需要 **Java 8 或更高**；`doctor` 会报告组件与 Java 的可用状态。
+格式细节、数据规模与已知限制见 `references/save.md`。
+
 ## 可选工具
 
 以下工具**不在本技能内分发**（二进制体积与第三方许可义务考量），按需自行从官方获取：
@@ -151,4 +168,5 @@ BSA Browser 为 GPL-3.0，且其作者在发布页声明**不允许转载至其�
 | `references/records.md` | 记录签名与子记录对照 |
 | `references/workflow.md` | 查询流程细则与交付形态 |
 | `references/troubleshooting.md` | 异常处理与降级路径 |
+| `references/save.md` | **存档读取**：格式、命令、规模参考、已知限制、组件构成与重建 |
 | `references/triggering.md` | 触发语料与路由边界（人工回归用） |

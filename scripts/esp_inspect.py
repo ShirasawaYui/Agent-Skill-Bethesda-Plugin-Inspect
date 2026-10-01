@@ -12,6 +12,9 @@
 """
 
 import argparse
+import os
+import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -148,8 +151,17 @@ def cmd_doctor(args):
         p = tools / rel
         print(f"    {label:<16}: {'已内置' if p.is_file() else '未安装 -> ' + url}")
 
-    return 0
+    print()
+    print("  存档读取（save 子命令）:")
+    sr = _save_reader_dir()
+    if (sr / "ReSaver.jar").is_file() and (sr / "SaveReader.class").is_file():
+        print("    组件            : 就绪")
+        java = _find_java()
+        print(f"    Java 运行时     : {java if java else '未找到（需要 Java 8 或更高）'}")
+    else:
+        print(f"    组件            : 缺失 -> {sr}")
 
+    return 0
 
 # ---------------------------------------------------------------- find
 
@@ -394,6 +406,82 @@ def cmd_grep(args):
     return 0
 
 
+# ---------------------------------------------------------------- save
+
+SAVE_READER_HINT = """\
+存档读取组件不可用。该组件应位于本技能目录下：
+
+    tools/save-reader/
+    ├── ReSaver.jar        解析引擎（Apache-2.0，来自 ReSaver / FallrimTools）
+    ├── SaveReader.class   导出入口
+    ├── SaveReader.java    入口源码
+    ├── lib/               运行依赖
+    └── LICENSE.txt        解析引擎许可
+
+另需 Java 运行时（Java 8 或更高）。"""
+
+
+def _save_reader_dir():
+    return Path(__file__).resolve().parent.parent / "tools" / "save-reader"
+
+
+def _find_java():
+    """按 环境变量 → 常见安装位置 → PATH 的顺序查找 java。"""
+    exe = "java.exe" if os.name == "nt" else "java"
+
+    home = os.environ.get("JAVA_HOME")
+    if home:
+        cand = Path(home) / "bin" / exe
+        if cand.is_file():
+            return str(cand)
+
+    if os.name == "nt":
+        bases = [r"C:\Program Files\Java", r"C:\Program Files\Eclipse Adoptium",
+                 r"C:\Program Files\Zulu", r"C:\Program Files\Microsoft"]
+        found = []
+        for base in bases:
+            b = Path(base)
+            if b.is_dir():
+                found.extend(p for p in b.glob("*/bin/java.exe") if p.is_file())
+        if found:
+            return str(sorted(found, reverse=True)[0])
+
+    return shutil.which("java")
+
+
+def cmd_save(args):
+    """读取 Skyrim 存档（.ess）内容 —— 透传给 tools/save-reader/SaveReader。"""
+    sub_args = list(args.save_args)
+    if not sub_args:
+        print("用法: esp_inspect.py save <info|globals|inventory|forms> <存档.ess> [过滤词]",
+              file=sys.stderr)
+        return 2
+
+    tools = _save_reader_dir()
+    if not (tools / "ReSaver.jar").is_file() or not (tools / "SaveReader.class").is_file():
+        print(SAVE_READER_HINT, file=sys.stderr)
+        return 2
+
+    java = _find_java()
+    if java is None:
+        print("未找到 Java 运行时（需要 Java 8 或更高）。请在 PATH 或 JAVA_HOME 中提供 java。",
+              file=sys.stderr)
+        return 2
+
+    cp_parts = [str(tools), str(tools / "ReSaver.jar")]
+    lib_dir = tools / "lib"
+    if lib_dir.is_dir():
+        cp_parts.extend(str(p) for p in sorted(lib_dir.glob("*.jar")))
+
+    cmd = [java, "-Dstdout.encoding=UTF-8", "-Dfile.encoding=UTF-8",
+           "-cp", os.pathsep.join(cp_parts), "SaveReader"] + sub_args
+    try:
+        return subprocess.run(cmd).returncode
+    except OSError as e:
+        print(f"调用 Java 失败: {e}", file=sys.stderr)
+        return 2
+
+
 # ---------------------------------------------------------------- main
 
 def main():
@@ -432,6 +520,12 @@ def main():
     p.add_argument("--mods-root", default=None)
     p.add_argument("--signature", default=None, help="限定记录签名，如 NPC_")
     p.set_defaults(func=cmd_chain)
+
+    p = sub.add_parser("save", parents=[common],
+                       help="读取 Skyrim 存档（.ess）内容：info / globals / inventory / forms")
+    p.add_argument("save_args", nargs="+",
+                   help="透传参数，如：info <存档.ess> | globals <存档.ess> [过滤词]")
+    p.set_defaults(func=cmd_save)
 
     args = ap.parse_args()
     sys.exit(args.func(args))

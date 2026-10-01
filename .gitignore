@@ -9,5 +9,7 @@ Thumbs.db
 .vscode/
 .idea/
 
-# 本地自用：如需内置第三方工具，放在 tools/ 下，不要提交
-tools/
+# 本地自用：第三方工具（Champollion / BSA Browser）不提交，见 SKILL.md「可选工具」
+# 注意：tools/save-reader/ 是随附组件，应当提交
+tools/champollion/
+tools/bsa-browser/
