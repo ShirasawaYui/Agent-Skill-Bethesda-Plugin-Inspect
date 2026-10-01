@@ -238,6 +238,22 @@ PNAM FNAM XNAM YNAM HNAM VNAM SNAM CNAM [CNAM…] INAM    ← 一个节点
 
 这是**读取**而非推断，优先于 EditorID 前缀、`_NPC` 剔除、孤立性等一切启发式。
 
+### 覆盖链末端怎么定
+
+1. **顺序来源**：读 MO2 配置档的 `loadorder.txt` —— 它记的是**全序**（含官方主文件与全部插件）。
+2. **启用状态**：`plugins.txt` 中以 `*` 开头者为启用。⚠️ **官方主文件
+   （`Skyrim.esm` / `Update.esm` / `Dawnguard.esm` / `HearthFires.esm` / `Dragonborn.esm`）
+   不写进 `plugins.txt`**，必须自行补入启用集合 —— 否则会漏掉它们对记录的改动
+   （实测：`Update.esm` 覆盖了 `AVSmithing`，USSEP 覆盖了 `AVDestruction`）。
+3. **对齐方式必须是 FormID，不是 EditorID**。覆盖的定义就是"同一 FormID 的记录在后排再次出现"。
+   EditorID 匹配会在两种情形下出错：插件**新建记录却复用旧名**（误判为覆盖）、
+   插件**覆盖时把 EditorID 改掉**（**整条漏掉**，此类改名在整合包里很常见）。
+   身份换算：取记录的 `form_id`，高字节 < master 数为「引用第 N 个 master」，≥ master 数为「本插件自身」；
+   身份 =（**插件名**，低 24 位）。**末端 = 该身份在 load order 中最后出现的那个启用插件。**
+4. **前提**：这是直接读 MO2/mods 物理文件 + 上述两份 txt 复现 MO2 的判定，等价于 MO2 usvfs 的结果 ——
+   前提是这两份文件即当前生效状态。顺序若刚被外部工具（LOOT 等）改动而尚未写盘，会与游戏不一致；
+   **最终仍以游戏内为准**。
+
 ### 三个陷阱
 
 1. **技能树本身也会被覆盖，且不同技能可能由不同插件提供。** AVIF 同样受 load order 决定 ——
@@ -248,8 +264,8 @@ PNAM FNAM XNAM YNAM HNAM VNAM SNAM CNAM [CNAM…] INAM    ← 一个节点
    **假设"整棵树来自同一个插件"会整棵漏掉。**
 2. 节点里的 `PNAM` 是**原版 perk 的 FormID** —— perk 大修普遍复用原版 id 并改写记录内容。
    因此把 FormID 解析成名字时**必须走 load order 归属**；只查 `Skyrim.esm` 只会读到原版旧名。
-3. 先列出 load order 中含 `AVIF` 的插件（通常只有个位数），再按技能取最靠后者，
-   可以省掉大量无谓扫描。
+3. 想缩小扫描面时，可先列出 load order 中含 `AVIF` 的插件（通常只有个位数），再按技能逐棵取胜者；
+   但这条捷径只决定"从哪些文件读"，**不改变上面的末端判定口径**。
 
 ### 最小实现
 
