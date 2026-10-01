@@ -149,8 +149,22 @@ for f in ctx.view(record).fields():
 
 ### 判断"某 perk 是否在玩家技能树上"的经验规则
 
-按以下顺序剔除（**启发式，不保证 100%**）：`EditorID 含 NULL` → `被 === 包裹` →
-`含 _NPC` → `FULL 为空`。剩下的大体就是星座图上的 perk。
+按以下顺序剔除（**启发式，不保证 100%**）：
+
+1. `EditorID 含 NULL` / `被 === 包裹` → 整合包禁用残留
+2. `含 _NPC` → 敌人专用
+3. `FULL 为空` → 空壳
+4. **孤立 perk** → 既无前置、也不被任何 perk 引用为前置，且描述中没有「解锁：…」标记。
+   真根一定被下级引用（如「炼金精通」被「进阶药剂」依赖）；带特殊解锁说明的（如
+   「元素屏障」的 `[解锁：英灵诅咒+2]`）仍属树内。
+
+> **验证手段（最可靠）**：请用户在游戏内核对 —— **每棵主技能树只应有 1 个初始可点的 perk**。
+> 若程序判断某树有 ≥2 个可点，多出来的就是误收。
+> 实测剔除批次：`===VKR_Alc_100_DoubleToilAndTrouble_PerkNULL===`（「不辞辛劳」）、
+> `===VKR_Loc_070_DungeonMaster_PerkNULL===`（「地牢大师」）、
+> `VKR_Alt_ArcaneGuidance_Perk`（「奥术导引」）、`VKR_Enc_000_EnchantingMastery3_perk`（「法则」）、
+> `VKR_Ill_Blur_Perk`（「模糊」）、`VKR_Bck_TorchBash_Perk`（「传火」）、
+> `VKR_Arc_EX_Rifilepowerup1_Perk`（「重膛线」）等 40 项。
 
 ## 7. PERK 的实际数值效果怎么读
 
