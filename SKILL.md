@@ -4,7 +4,7 @@ display_name: 结衣的Bethesda模组内容分析助手
 description: 直接读取 Bethesda 游戏插件（esp/esm/esl）记录，定位某个 mod 改了什么——角色参数、任务流程、道具效果、脚本挂载，并还原 load order 覆盖链确认最终生效值。当用户问「这个 mod 改了什么」「某条记录的最终数值是多少」「这个脚本里写了什么」时使用。不用于修改或编译插件（写操作请用 SSEEdit），不做模型贴图等资源内容的视觉查看。
 description_zh: 读取 Bethesda 游戏插件（esp/esm/esl）记录，定位某个 mod 改了什么内容——角色参数、任务流程、道具效果、脚本挂载，并还原 load order 覆盖链确认最终生效值。附带 pex 脚本反编译与 bsa/ba2 归档读取路径。
 description_en: Read Bethesda game plugin (esp/esm/esl) records to find out what a mod changes — actor stats, quest flow, item effects, script attachments — and resolve the load-order override chain to determine the finally effective value. Also covers pex decompilation and bsa/ba2 archive reading.
-version: 1.4.8
+version: 1.4.9
 author: Yui
 license: MIT
 agent_created: true
@@ -105,6 +105,16 @@ metadata:
 **仅限 Skyrim 原版技能树**：自定义技能树框架（CSF 系列，如 `EldenPerkTree.esp`）不写 AVIF 记录，
 本命令看不见。原理与四个已知陷阱见 `references/records.md` 第 8 节。
 
+### 5 机制归因 —— 「这个机制是怎么实现的」
+
+问「为什么采集一次给多份」这类问题时，**不要在技能树里找完就下结论**：
+**perk 不只在技能树上**，还有一批不进树、不挂前置的**全局控制 perk**
+（Requiem 系实测 17 个 `RFTI_Player_*`，含炼金）。用完 `tree` 还要按前缀扫一遍全插件的 `PERK`。
+
+三层排查顺序（记录层 → 脚本层 → 插件层）与「查不到时结论能停在哪」的纪律见
+`references/troubleshooting.md` 第 7 节。**记录层查不到 ≠ 这个包没有该机制**；
+把它直接升级成「引擎层」同样是越界归因。
+
 ## 分支
 
 ### 脚本（记录含 VMAD 时）
@@ -180,6 +190,6 @@ BSA Browser 为 GPL-3.0，且其作者在发布页声明**不允许转载至其�
 | `references/api.md` | bethkit API 速查与陷阱清单 |
 | `references/records.md` | 记录签名对照；**前置条件（CTDA）、entry point 实际数值、PERK 树成员关系怎么读**（AVIF 部分仅限 Skyrim 原版技能树） |
 | `references/workflow.md` | 查询流程细则与交付形态 |
-| `references/troubleshooting.md` | 异常处理与降级路径 |
+| `references/troubleshooting.md` | 异常处理与降级路径；**机制归因纪律（§7：非树 perk、三层排查、查不到时能说什么）** |
 | `references/save.md` | **存档读取**：格式、命令、规模参考、已知限制、组件构成与重建 |
 | `references/triggering.md` | 触发语料与路由边界（人工回归用） |

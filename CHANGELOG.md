@@ -9,6 +9,14 @@
 
 ---
 
+## 1.4.9 — 2026-10-02
+
+- `references/troubleshooting.md` §7 补**漏检载体**这一条：**perk 不只在技能树上** ——
+  行为常挂在「不进树、不挂前置」的**全局控制 perk** 上（Requiem 系实测 17 个 `RFTI_Player_*`，
+  含炼金）。只看 `tree` 输出必然漏且不报错。**归因到「引擎层」之前必须先扫非树 perk**。
+  同日「采集数量」实例加事后补记：当时只扫了技能树内的 perk，
+  被用户以纯 Requiem 实机经验纠正（该机制出自 Requiem 本身）。troubleshooting.md 版本 → v1.1.3。
+
 ## 1.4.8 — 2026-10-02
 
 - `references/api.md` §2 **遍历示例改为递归写法**：原示例只遍历顶层 `group_at()` 的直接子项，
