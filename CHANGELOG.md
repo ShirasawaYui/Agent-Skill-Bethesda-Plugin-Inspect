@@ -9,6 +9,15 @@
 
 ---
 
+## 1.4.7 — 2026-10-02
+
+- `references/troubleshooting.md` §2 补两条实测避坑：
+  **① 乱码别去调终端编码** —— `PYTHONIOENCODING=utf-8`、换代码页、重定向输出**全无效**；
+  乱码在取值那一刻就产生（字段值本身就是 Latin-1 化的 `str`），只能用 `s.encode('latin1').decode('utf-8')` 还原。
+  **② `dump` 的长字段（如 `Description`）会只显示前半截**，不要据此判断原文长度，要全文改走「读偏移字节窗口」。
+- §3 新增一行：**固定跳过 `EldenSkyrim.esp`**（`BethkitNativeError: invalid UTF-8 in EDID subrecord`）
+  属**已知无损跳过**，以后扫描再看到不必排查。
+
 ## 1.4.6 — 2026-10-02
 
 - **修 `chain` 崩溃**：覆盖链里含**无 EDID 的记录**时，`esp_inspect.py` 第 493 行
